@@ -1,6 +1,6 @@
 #!/usr/bin/make
 # Time-stamp: <2008-06-03 17:35>
-# Revision date: $Date: 2008-05-24 22:48:05 -0600 (Sat, 24 May 2008) $
+# Revision date: $Date$
 
 .PHONY: all print clean dist
 
