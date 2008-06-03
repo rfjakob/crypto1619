@@ -1,0 +1,28 @@
+.. Time-stamp: <2008-06-03 17:28> -*-rst-*-
+
+======================================================================
+README
+======================================================================
+
+:Author:    Charlie Martin
+:email:     charles.martin@sun.com, chasrmartin@gmail.com
+:Phone:     (303) 661-6532
+:Date:      $Date$
+:ID:        $Id$
+:Format:    reStructuredText_
+
+This contains the sources and build instructions for test code for
+IEEE 1619 test code.
+
+I'm setting up top-level directories for each encryption mode or other
+major piece, plus a directory for test code.  Inside each direcotry
+will be a top-level Makefile (in GNU make format but using no extreme
+features), plus a src directory containing sources.  I'd like this
+eventually to have test programs so each chunk can be tested against
+test vectors etc automatically.
+
+For any questions, please contact me at the emails above.
+
+
+.. _reStructuredText: http://docutils.sourceforge.com
+
