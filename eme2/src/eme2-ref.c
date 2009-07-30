@@ -112,10 +112,10 @@ void encdecEME2(unsigned char C[], const unsigned char K[], int keyBits,
      exit (1);
 
   /* Split key into subkeys */
-  K1 = K;
+  K3 = K;
+  K2 = K3 + 128/8;
+  K1 = K2 + 128/8;
   k1Bits = keyBits - 256;
-  K2 = K + k1Bits/8;
-  K3 = K + (k1Bits+128)/8;
 
   /* Intermediate results are safely overlaid on output buffer */
   /* Except for last PPP and CCC which may not fit due to padding */
@@ -135,19 +135,23 @@ void encdecEME2(unsigned char C[], const unsigned char K[], int keyBits,
     xorBlocks(I1(PPP,i), I1(P,i), L);        /* PPi = 2**(i-1)*L xor Pi */
     aesBlock(I1(PPP,i),
              K1, k1Bits, I1(PPP,i), dir);    /* PPPi = AES-enc(K1; PPi)  */
-    multByAlpha(L, L);
+    multByAlpha(L, L);                       /* 2**i * L */
   }
   if (lenPm < 16) {
     padBlock (PPPm, I1(P,m), lenPm);
+  } else if (m == 1) {
+    xorBlocks(I1(PPP,1), I1(P,1), L);        /* PP1 = L xor Pi */
+    aesBlock(I1(PPP,1), K1, k1Bits, I1(PPP,1), dir);/* PPP1 = AES-enc(K1; PP1)*/
   } else {
     xorBlocks(PPPm, I1(P,m), L);             /* PPi = 2**(m-1)*L xor Pi */
-    aesBlock(PPPm, K1, k1Bits, PPPm, dir);   /* PPPi = AES-enc(K1; PPj)  */
+    aesBlock(PPPm, K1, k1Bits, PPPm, dir);   /* PPPi = AES-enc(K1; PPi)  */
   }
 
   xorBlocks(MP, I1(PPP,1), T_star);          /* MP = (xorSum PPPi) xor T_star */
   for (i=2; i<=m-1; i++)
     xorBlocks(MP, MP, I1(PPP,i));
-  xorBlocks(MP, MP, PPPm);
+  if (m > 1)
+    xorBlocks(MP, MP, PPPm);
 
   if (lenPm < 16) {
     aesBlock(MM, K1, k1Bits, MP, dir);        /* MM = AES-enc(K1; MP)     */
@@ -177,7 +181,7 @@ void encdecEME2(unsigned char C[], const unsigned char K[], int keyBits,
   } else if ((m-1) % 128 > 0) {
       multByAlpha(M, M);
       xorBlocks(CCCm, PPPm, M);               /* CCCm = 2**(m-1)*M xor PPPm */
-  } else {
+  } else if (m > 1) {
       xorBlocks(MP, PPPm, M1);                /* MP = PPPm xor M1       */
       aesBlock(MC, K1, k1Bits, MP, dir);      /* MC = AES-enc(k; MP)   */
       xorBlocks(CCCm, MC, M1);                /* CCCm = MC xor M1       */
@@ -186,7 +190,8 @@ void encdecEME2(unsigned char C[], const unsigned char K[], int keyBits,
   xorBlocks(I1(CCC,1), MC1, T_star);           /* CCC1 = MC1 xor (xorSum CCCi) xor T_star */
   for (i=2; i<=m-1; i++)
     xorBlocks(I1(CCC,1), I1(CCC,1), I1(CCC,i));
-  xorBlocks(I1(CCC,1), I1(CCC,1), CCCm);
+  if (m > 1)
+    xorBlocks(I1(CCC,1), I1(CCC,1), CCCm);
 
   memcpy (L, K2, 16);						  /* Reset L as copy of K2 */
   for (i=1; i<=m-1; i++) {
@@ -197,8 +202,13 @@ void encdecEME2(unsigned char C[], const unsigned char K[], int keyBits,
   }
   if (lenPm == 16) {
     /* Note that we computed the last ciphertext block above if it was short */
-    aesBlock(CCCm, K1, k1Bits, CCCm, dir);    /* CCm = AES-enc(K1; CCCm)  */
-    xorBlocks(I1(C,m), CCCm,  L);             /* Cm = 2**(m-1)*L xor CCm */
+    if (m == 1) {
+      aesBlock(I1(CCC,1), K1, k1Bits, I1(CCC,1), dir);/* CC1=AES-enc(K1;CCC1)*/
+      xorBlocks(I1(C,1), I1(CCC,1),  L);      /* C1 = L xor CC1 */
+    } else {
+      aesBlock(CCCm, K1, k1Bits, CCCm, dir);  /* CCm = AES-enc(K1; CCCm)  */
+      xorBlocks(I1(C,m), CCCm,  L);           /* Cm = 2**(m-1)*L xor CCm */
+    }
   }
 }
 
@@ -292,5 +302,27 @@ static void aesBlock(unsigned char out[16], const unsigned char key[],
 
   if (dir==AES_ENCRYPT) AES_encrypt(in, out, &aesKey);
   else                  AES_decrypt(in, out, &aesKey);
+}
+
+
+
+/* Additions for Brian Gladman's gentest.c API */
+
+int
+eme2_encrypt( const unsigned char pt_buf[], unsigned char ct_buf[], unsigned int pt_len,
+                         const unsigned char ad_buf[], unsigned int ad_len,
+                         const unsigned char key[], unsigned int key_len)
+{
+	encdecEME2(ct_buf, key, key_len*8, ad_buf, ad_len, pt_buf, pt_len, 1);
+	return 0;
+}
+
+int
+eme2_decrypt( const unsigned char ct_buf[], unsigned char pt_buf[], unsigned int pt_len,
+                         const unsigned char ad_buf[], unsigned int ad_len,
+                         const unsigned char key[], unsigned int key_len)
+{
+	encdecEME2(pt_buf, key, key_len*8, ad_buf, ad_len, ct_buf, pt_len, 0);
+	return 0;
 }
 
